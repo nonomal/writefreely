@@ -414,6 +414,18 @@ func (c CollectionPage) DisplayMonetization() string {
 	return displayMonetization(c.Monetization, c.Alias)
 }
 
+// UserPage provides the fields expected by the shared "user-navigation"
+// template, which otherwise assumes it's rendering for a page that embeds
+// *UserPage (e.g. the "me" backend pages).
+func (c CollectionPage) UserPage() *UserPage {
+	return &UserPage{
+		StaticPage: c.StaticPage,
+		IsAdmin:    c.IsAdmin,
+		CanInvite:  c.CanInvite,
+		CollAlias:  c.CollAlias,
+	}
+}
+
 func (c *DisplayCollection) Direction() string {
 	if c.Language == "" {
 		return "auto"
@@ -630,18 +642,19 @@ func fetchCollectionPosts(app *App, w http.ResponseWriter, r *http.Request) erro
 type CollectionPage struct {
 	page.StaticPage
 	*DisplayCollection
-	IsCustomDomain bool
-	IsWelcome      bool
-	IsOwner        bool
-	IsCollLoggedIn bool
-	Honeypot       string
-	IsSubscriber   bool
-	CanPin         bool
-	Username       string
-	Monetization   string
-	Flash          template.HTML
-	Collections    *[]Collection
-	PinnedPosts    *[]PublicPost
+	IsCustomDomain  bool
+	IsWelcome       bool
+	IsOwner         bool
+	IsCollLoggedIn  bool
+	Honeypot        string
+	IsSubscriber    bool
+	CanPin          bool
+	Username        string
+	Monetization    string
+	FediverseAuthor string
+	Flash           template.HTML
+	Collections     *[]Collection
+	PinnedPosts     *[]PublicPost
 
 	IsAdmin   bool
 	CanInvite bool
@@ -1396,12 +1409,14 @@ func handleWebCollectionUnlock(app *App, w http.ResponseWriter, r *http.Request)
 
 	// Success; set cookie
 	session, err := app.sessionStore.Get(r, blogPassCookieName)
-	if err == nil {
-		session.Values[readReq.Alias] = true
-		err = session.Save(r, w)
-		if err != nil {
-			log.Error("Didn't save unlocked blog '%s': %v", readReq.Alias, err)
-		}
+	if err != nil {
+		// The cookie should still save, even if there's an error.
+		log.Error("Getting blog password cookie for '%s': %v; ignoring", readReq.Alias, err)
+	}
+	session.Values[readReq.Alias] = true
+	err = session.Save(r, w)
+	if err != nil {
+		log.Error("Didn't save unlocked blog '%s': %v", readReq.Alias, err)
 	}
 
 	next := "/" + readReq.Next
